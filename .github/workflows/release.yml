@@ -1,0 +1,68 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install make
+        run: sudo apt-get install -y make
+
+      - name: Vendor
+        run: make vendor
+
+      - name: Lint
+        run: make lint
+
+  build:
+    needs: lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install make
+        run: sudo apt-get install -y make
+
+      - name: Set version from tag
+        env:
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          VERSION="${REF_NAME#v}"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Tag is not a semver: $REF_NAME"; exit 1; }
+          sed -i "s/\"version\": \"[^\"]*\"/\"version\": \"${VERSION}\"/" build_mkp.py
+
+      - name: Vendor and build
+        run: make vendor && make build
+
+      - name: Upload MKP artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: mkp
+          path: '*.mkp'
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download MKP artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: mkp
+
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create ${{ github.ref_name }} \
+            --repo ${{ github.repository }} \
+            --generate-notes \
+            --title "${{ github.ref_name }}" \
+            *.mkp

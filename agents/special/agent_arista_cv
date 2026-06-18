@@ -1,0 +1,186 @@
+#!/usr/bin/env python3
+"""checkmk special agent for Arista CloudVision (CVP / CVaaS).
+
+Queries CloudVision inventory via cvprac and outputs checkmk agent sections.
+
+Without --piggyback (default):
+  <<<arista_cv_info>>>     on the CVP host
+  <<<arista_cv_devices>>>  on the CVP host — one item per device
+
+With --piggyback:
+  <<<arista_cv_info>>>     on the CVP host (unchanged)
+  <<<arista_cv_devices>>>  on the CVP host (unchanged, for overview)
+  <<<<device>>>>           piggyback block per device
+  <<<arista_cv_device_status>>>  on each device's own checkmk host
+"""
+
+import argparse
+import json
+import sys
+from typing import Any, Dict, List
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="checkmk special agent for Arista CloudVision (CVP / CVaaS)"
+    )
+    parser.add_argument("--hostname", required=True, help="CVP/CVaaS hostname or IP address")
+    parser.add_argument("--username", default=None, help="CVP username (username/password auth)")
+    parser.add_argument("--password", default=None, help="CVP password (username/password auth)")
+    parser.add_argument(
+        "--token",
+        default=None,
+        help="Service account token (on-prem or CVaaS; mutually exclusive with --username/--password)",
+    )
+    parser.add_argument(
+        "--cvaas",
+        action="store_true",
+        help="Target is CloudVision as a Service (CVaaS); requires --token",
+    )
+    parser.add_argument(
+        "--port", type=int, default=443, help="CVP HTTPS port (default: 443)"
+    )
+    parser.add_argument(
+        "--no-tls-verify",
+        action="store_true",
+        help="Disable TLS certificate verification (not recommended in production)",
+    )
+    parser.add_argument(
+        "--piggyback",
+        action="store_true",
+        help="Emit piggyback sections so each CVP device gets a status service on its own checkmk host",
+    )
+    parser.add_argument(
+        "--piggyback-name",
+        choices=["hostname", "fqdn", "ipaddress"],
+        default="hostname",
+        help="Which CVP field to use as the piggyback host name (default: hostname)",
+    )
+
+    args = parser.parse_args()
+
+    if args.cvaas:
+        if not args.token:
+            parser.error("--cvaas requires --token")
+        if args.username or args.password:
+            parser.error("--cvaas cannot be used with --username/--password")
+    elif args.token:
+        if args.username or args.password:
+            parser.error("--token cannot be combined with --username/--password")
+    else:
+        if not args.username or not args.password:
+            parser.error("either --token or both --username and --password are required")
+
+    return args
+
+
+def output_section(name: str, data: Any) -> None:
+    print(f"<<<{name}:sep(0)>>>")
+    print(json.dumps(data))
+
+
+def output_piggyback(piggyback_host: str, section_name: str, data: Any) -> None:
+    print(f"<<<<{piggyback_host}>>>>")
+    print(f"<<<{section_name}:sep(0)>>>")
+    print(json.dumps(data))
+    print("<<<<>>>>")
+
+
+def build_device_record(device: Dict[str, Any]) -> Dict[str, Any]:
+    return {
+        "hostname": device.get("hostname") or device.get("fqdn") or "unknown",
+        "fqdn": device.get("fqdn", ""),
+        "ipAddress": device.get("ipAddress", ""),
+        "systemMacAddress": device.get("systemMacAddress", ""),
+        "serialNumber": device.get("serialNumber", ""),
+        "modelName": device.get("modelName", ""),
+        "version": device.get("version", ""),
+        "status": device.get("status", "Unknown"),
+        "complianceIndication": device.get("complianceIndication") or "NONE",
+        "streamingStatus": device.get("streamingStatus", "inactive"),
+        "containerName": device.get("containerName", ""),
+    }
+
+
+def piggyback_host_name(record: Dict[str, Any], name_field: str) -> str:
+    if name_field == "fqdn":
+        return record.get("fqdn") or record["hostname"]
+    if name_field == "ipaddress":
+        return record.get("ipAddress") or record["hostname"]
+    return record["hostname"]
+
+
+def main() -> int:
+    args = parse_args()
+
+    try:
+        from cvprac.cvp_client import CvpClient
+    except ImportError:
+        sys.stderr.write("ERROR: cvprac library not found\n")
+        return 1
+
+    if args.no_tls_verify:
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
+    client = CvpClient()
+
+    try:
+        if args.token:
+            client.connect(
+                nodes=[args.hostname],
+                username="",
+                password="",
+                api_token=args.token,
+                is_cvaas=args.cvaas,
+                port=args.port,
+                cert=not args.no_tls_verify,
+                connect_timeout=10,
+                request_timeout=30,
+            )
+        else:
+            client.connect(
+                nodes=[args.hostname],
+                username=args.username,
+                password=args.password,
+                port=args.port,
+                cert=not args.no_tls_verify,
+                connect_timeout=10,
+                request_timeout=30,
+            )
+    except Exception as exc:
+        sys.stderr.write(f"ERROR: Cannot connect to CVP at {args.hostname}: {exc}\n")
+        return 1
+
+    try:
+        cvp_info = client.api.get_cvp_info()
+        info_data: Dict[str, str] = {
+            "version": cvp_info.get("version", "unknown"),
+            "cvpNodeAddress": args.hostname,
+        }
+    except Exception as exc:
+        sys.stderr.write(f"WARNING: Failed to retrieve CVP system info: {exc}\n")
+        info_data = {"version": "unknown", "cvpNodeAddress": args.hostname}
+
+    output_section("arista_cv_info", info_data)
+
+    try:
+        inventory: List[Dict[str, Any]] = client.api.get_inventory()
+    except Exception as exc:
+        sys.stderr.write(f"ERROR: Failed to retrieve CVP inventory: {exc}\n")
+        return 1
+
+    devices = [build_device_record(d) for d in inventory]
+    output_section("arista_cv_devices", devices)
+
+    if args.piggyback:
+        for record in devices:
+            pb_host = piggyback_host_name(record, args.piggyback_name)
+            if pb_host and pb_host != "unknown":
+                output_piggyback(pb_host, "arista_cv_device_status", record)
+
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

@@ -1,0 +1,44 @@
+#!/usr/bin/env python3
+"""checkmk 2.2 special agent argument mapper for Arista CVP.
+
+Maps WATO parameters (flat structure from web/plugins/wato/agent_arista_cv.py)
+to CLI arguments for agents/special/agent_arista_cv.
+"""
+
+from typing import Any, Dict, List
+
+
+def _arista_cv_agent_arguments(
+    params: Dict[str, Any],
+    hostname: str,
+    ipaddress: str,
+) -> List[str]:
+    deploy_type, deploy_data = params["deployment"]
+
+    if deploy_type == "cvaas":
+        args: List[str] = [
+            "--hostname", deploy_data["endpoint"],
+            "--token", deploy_data["token"],
+            "--cvaas",
+        ]
+    else:
+        args = [
+            "--hostname", deploy_data["hostname"],
+            "--port", str(deploy_data.get("port", 443)),
+        ]
+        auth_type, auth_data = deploy_data["credentials"]
+        if auth_type == "token":
+            args += ["--token", auth_data["token"]]
+        else:
+            args += ["--username", auth_data["username"], "--password", auth_data["password"]]
+        if deploy_data.get("no_tls_verify"):
+            args.append("--no-tls-verify")
+
+    if params.get("piggyback"):
+        args.append("--piggyback")
+        args += ["--piggyback-name", params.get("piggyback_name", "hostname")]
+
+    return args
+
+
+special_agent_info["arista_cv"] = _arista_cv_agent_arguments  # type: ignore[name-defined]
