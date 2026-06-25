@@ -28,6 +28,24 @@ One **Arista CVP Device \<hostname\>** service per managed device (on the CVP ho
 
 All thresholds are configurable via **Setup → Services → Service monitoring rules → Arista CVP Device Status**.
 
+### Service account token expiry
+
+When the agent authenticates with a **service account token**, it also monitors token expiry on the CloudVision host:
+
+- One **Arista CVP Token** service for the token the agent itself uses (read by decoding the token's expiry claim — no extra API call, works on any CVP/CVaaS version).
+- One **Arista CVP Service Token \<user\> / \<description\>** service per service account token configured in CVP/CVaaS, enumerated via the Resource API.
+
+| State | Default |
+|-------|---------|
+| Token expires within 14 days | WARN |
+| Token expires within 4 days (or already expired) | CRIT |
+
+Thresholds are configurable via **Setup → Services → Service monitoring rules → Arista CVP Token**.
+
+> **Token services live only on the CloudVision host** — they are never pushed to device hosts via piggyback, since token expiry is a property of the CVP/CVaaS instance.
+>
+> Enumerating *all* service account tokens requires the authenticating account to have read access to service accounts (typically admin) and CVP on-prem ~2021.x+ or CVaaS. When that is unavailable the agent logs a warning and only the **Arista CVP Token** service (the agent's own token) is reported. Username/password auth has no token expiry, so no token services appear.
+
 ## Piggyback mode
 
 Enable **piggyback mode** in the agent rule to additionally place an **Arista CVP Status** service on each device's own checkmk host. The piggyback host name can be matched by CVP hostname, FQDN, or IP address.
