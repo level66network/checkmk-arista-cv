@@ -116,15 +116,22 @@ class _FakeClient:
 
 
 def test_enumerate_service_tokens_maps_fields(agent):
+    # Real cvprac shape (see svc_account_token_get_all docstring): each entry
+    # nests the token under "value", with the id nested again under
+    # "value.key.id".
     client = _FakeClient(
         _FakeApi(
             tokens=[
                 {
-                    "id": "tok-1",
-                    "description": "ansible",
-                    "user": "svc-ansible",
-                    "valid_until": 1750000000,
-                    "last_used": 1749000000,
+                    "value": {
+                        "key": {"id": "tok-1"},
+                        "description": "ansible",
+                        "user": "svc-ansible",
+                        "valid_until": "2025-06-15T16:53:20Z",
+                        "last_used": "2025-06-04T10:16:40Z",
+                    },
+                    "time": "2025-01-01T00:00:00Z",
+                    "type": "INITIAL",
                 }
             ]
         )
@@ -135,8 +142,8 @@ def test_enumerate_service_tokens_maps_fields(agent):
             "id": "tok-1",
             "description": "ansible",
             "user": "svc-ansible",
-            "valid_until": 1750000000,
-            "last_used": 1749000000,
+            "valid_until": 1750006400,
+            "last_used": 1749032200,
         }
     ]
 

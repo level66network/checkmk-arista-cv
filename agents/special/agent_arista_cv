@@ -188,10 +188,18 @@ def enumerate_service_tokens(client: Any, stderr: Any = sys.stderr) -> List[Dict
         return []
 
     records: List[Dict[str, Any]] = []
-    for token in tokens or []:
+    for entry in tokens or []:
+        if not isinstance(entry, dict):
+            continue
+        # Resource API entries nest the token under "value" (with the id
+        # nested again under value.key.id); older/flat shapes are read as-is.
+        token = entry.get("value", entry)
         if not isinstance(token, dict):
             continue
-        token_id = token.get("id") or token.get("key") or token.get("value") or ""
+        key = token.get("key")
+        token_id = (key.get("id") if isinstance(key, dict) else None) or token.get(
+            "id", ""
+        )
         valid_until = normalize_valid_until(
             token.get("valid_until", token.get("validUntil"))
         )
