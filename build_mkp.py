@@ -26,7 +26,8 @@ PACKAGE_INFO: dict = {
     "description": (
         "Special agent and check plugins for Arista CloudVision (CVP / CVaaS). "
         "Monitors device connection status, compliance, streaming telemetry, "
-        "pending tasks, and last contact time per device. Supports "
+        "pending tasks, and last contact time per device, plus service account "
+        "token expiry on the CVP/CVaaS host. Supports "
         "username/password and service account token auth for CloudVision Portal (CVP), "
         "and token auth for CloudVision as a Service (CVaaS). Includes piggyback mode "
         "so each managed device gets its own checkmk host with an Arista CVP Status service."
@@ -42,9 +43,11 @@ PACKAGE_INFO: dict = {
             "arista_cv/agent_based/arista_cv_devices.py",
             "arista_cv/agent_based/arista_cv_device_status.py",
             "arista_cv/agent_based/arista_cv_info.py",
+            "arista_cv/agent_based/arista_cv_token.py",
             "arista_cv/rulesets/__init__.py",
             "arista_cv/rulesets/special_agent_arista_cv.py",
             "arista_cv/rulesets/check_params_arista_cv.py",
+            "arista_cv/rulesets/check_params_arista_cv_token.py",
             "arista_cv/server_side_calls/__init__.py",
             "arista_cv/server_side_calls/special_agent_arista_cv.py",
         ],
@@ -57,7 +60,7 @@ PACKAGE_INFO: dict = {
     },
     "name": "arista_cv",
     "title": "Arista CloudVision (CVP / CVaaS)",
-    "version": "1.0.5",
+    "version": "1.1.0",
     "version.min_required": "2.3.0p0",
     "version.packaged": "2.5.0p6",
     "version.usable_until": None,
