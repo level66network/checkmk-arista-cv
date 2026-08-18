@@ -41,9 +41,10 @@ To cover *other* tokens, CVP/CVaaS exposes the `arista.serviceaccount.v1`
 Resource API, wrapped by cvprac (`svc_account_token_get_all()`), returning every
 token with its expiry, owning account, and description.
 
-- **Permissions:** enumeration requires the authenticating account to have read
-  access to service accounts (typically admin). Least-privilege monitoring
-  accounts will get a permission error.
+- **Permissions:** enumeration requires the authenticating account to hold the
+  **Credentials** role permission ("View and configure credentials") in
+  CVP/CVaaS RBAC. Least-privilege monitoring accounts without it will get a
+  permission error.
 - **Availability:** the Resource API requires CVaaS or CVP on-prem ~2021.x+.
   Older CVP lacks it.
 
@@ -193,8 +194,9 @@ self-token service matches the host part; the per-token services match per item.
 ### 5. Documentation — `README.md`
 
 - Under "What it monitors": add the two token services, the 14/4-day defaults,
-  the ruleset, and the note that all-token enumeration needs admin read perms +
-  CVP ~2021.x+/CVaaS and that token services live only on the CVP/CVaaS host.
+  the ruleset, and the note that all-token enumeration needs the Credentials
+  role permission + CVP ~2021.x+/CVaaS and that token services live only on
+  the CVP/CVaaS host.
 
 ## Error handling summary
 

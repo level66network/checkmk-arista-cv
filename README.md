@@ -44,7 +44,7 @@ Thresholds are configurable via **Setup → Services → Service monitoring rule
 
 > **Token services live only on the CloudVision host** — they are never pushed to device hosts via piggyback, since token expiry is a property of the CVP/CVaaS instance.
 >
-> Enumerating *all* service account tokens requires the authenticating account to have read access to service accounts (typically admin) and CVP on-prem ~2021.x+ or CVaaS. When that is unavailable the agent logs a warning and only the **Arista CVP Token** service (the agent's own token) is reported. Username/password auth has no token expiry, so no token services appear.
+> Enumerating *all* service account tokens requires the authenticating account to hold the **Credentials** role permission ("View and configure credentials") in CVP/CVaaS RBAC, plus CVP on-prem ~2021.x+ or CVaaS. When that is unavailable the agent logs a warning and only the **Arista CVP Token** service (the agent's own token) is reported. Username/password auth has no token expiry, so no token services appear.
 
 ## Piggyback mode
 
